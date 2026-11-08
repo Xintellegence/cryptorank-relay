@@ -103,12 +103,28 @@ function write(items) {
 async function main() {
   // Diperlukan hanya saat scraping; test bisa jalan tanpa playwright terpasang.
   const { chromium } = require('playwright');
-  const browser = await chromium.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+  // Headless terdeteksi Cloudflare (managed challenge tidak pernah selesai),
+  // jadi jalankan headed di dalam xvfb (lihat workflow) + samarkan penanda
+  // otomasi yang paling sering dipakai challenge.
+  const browser = await chromium.launch({
+    headless: false,
+    args: [
+      '--no-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-blink-features=AutomationControlled',
+    ],
+  });
   const context = await browser.newContext({
     userAgent: UA,
     locale: 'en-US',
     viewport: { width: 1366, height: 900 },
     timezoneId: 'Asia/Makassar',
+  });
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+    window.chrome = window.chrome || { runtime: {} };
   });
   const page = await context.newPage();
 
@@ -131,11 +147,19 @@ async function main() {
 
   await page.goto(LIST_URL, { waitUntil: 'domcontentloaded', timeout: 90000 });
   // Challenge Cloudflare selesai saat judul halaman tidak lagi "Just a moment".
+  // Beri waktu lebih lama: mode headed kadang butuh >60 detik di runner lambat.
   await page.waitForFunction(
     () => !/just a moment|performing security verification/i.test(document.title),
     null,
-    { timeout: 60000 },
+    { timeout: 120000 },
   ).catch(() => console.warn('peringatan: challenge Cloudflare belum selesai'));
+  // Setelah challenge lewat, tunggu tabel drop benar-benar ter-render.
+  await page.waitForFunction(
+    () => !!document.getElementById('__NEXT_DATA__'),
+    null,
+    { timeout: 60000 },
+  ).catch(() => console.warn('peringatan: __NEXT_DATA__ tidak muncul'));
+  await page.waitForTimeout(2000);
 
   const items = new Map();
   for (const payload of payloads.values()) harvest(payload, items);

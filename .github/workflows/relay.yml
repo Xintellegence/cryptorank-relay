@@ -1,0 +1,56 @@
+name: cryptorank-relay
+
+# Drop hunting CryptoRank di-scrape di runner (Chromium asli) lalu hasilnya
+# di-commit sebagai data/cryptorank.json. mintwatch membaca file itu lewat
+# raw.githubusercontent.com, jadi tidak perlu menembus Cloudflare dari Termux.
+on:
+  schedule:
+    - cron: '17 */6 * * *'   # tiap 6 jam, menit ke-17
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cryptorank-relay
+  cancel-in-progress: false
+
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Scrape drop hunting
+        run: node scrape.js
+
+      - name: Commit hasil
+        run: |
+          git config user.name 'cryptorank-relay'
+          git config user.email 'relay@users.noreply.github.com'
+          git add data/cryptorank.json
+          if git diff --staged --quiet; then
+            echo 'tidak ada perubahan'
+            exit 0
+          fi
+          git commit -m "data: cryptorank $(date -u +%FT%TZ)"
+          git push
+
+      - name: Simpan artefak saat gagal
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cryptorank-failure
+          path: data/cryptorank.json
+          if-no-files-found: ignore

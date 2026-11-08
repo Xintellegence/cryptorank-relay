@@ -102,7 +102,9 @@ function write(items) {
 
 async function main() {
   // Diperlukan hanya saat scraping; test bisa jalan tanpa playwright terpasang.
-  const { chromium } = require('playwright');
+  const { chromium } = require('playwright-extra');
+  const stealth = require('puppeteer-extra-plugin-stealth')();
+  chromium.use(stealth);
   // Headless terdeteksi Cloudflare (managed challenge tidak pernah selesai),
   // jadi jalankan headed di dalam xvfb (lihat workflow) + samarkan penanda
   // otomasi yang paling sering dipakai challenge.

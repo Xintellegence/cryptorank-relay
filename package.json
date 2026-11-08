@@ -1,0 +1,13 @@
+{
+  "name": "cryptorank-relay",
+  "version": "1.0.0",
+  "description": "Scrape CryptoRank Drop Hunting dari GitHub Actions, simpan sebagai JSON",
+  "private": true,
+  "scripts": {
+    "scrape": "node scrape.js",
+    "test": "node --test test/"
+  },
+  "dependencies": {
+    "playwright": "^1.49.0"
+  }
+}
